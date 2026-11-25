@@ -1,0 +1,14 @@
+*.local.json
+*.log
+*.user
+artifacts/
+test-results/
+.vs/
+.vscode/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.pfx
+*.pem
+*.key
