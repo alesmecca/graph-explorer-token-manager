@@ -2,108 +2,97 @@
 
 [![Windows tests](https://github.com/alesmecca/graph-explorer-token-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/alesmecca/graph-explorer-token-manager/actions/workflows/ci.yml)
 
-Recupera il tuo access token da **Microsoft Graph Explorer**, verifica l'identità prevista con Microsoft Graph e usalo nei tuoi strumenti. Interfaccia Windows, CLI e modulo PowerShell; nessun account preconfigurato e nessun token salvato su disco.
+Accedi a **Microsoft Graph Explorer**, scegli l'account e riusa il suo access token nelle automazioni PowerShell. **Nessuna registrazione applicativa, client secret o certificato da configurare.** Il tool riconosce tenant e utente e verifica l'identità con Microsoft Graph prima di confermare il profilo.
 
-**Versione 1.0.0 · Windows 10/11 · PowerShell 7.4+ · Microsoft Edge in italiano o inglese.**
+**2.0.0 · Windows 10/11 · PowerShell 7.4+ · Edge in italiano o inglese · Microsoft cloud globale.**
 
-![Interfaccia del programma](docs/assets/manager.png)
+![Interfaccia Windows](docs/assets/manager.png)
 
-## Avvio rapido
+## Primo utilizzo
 
-1. Scarica lo ZIP dalla pagina [Releases](https://github.com/alesmecca/graph-explorer-token-manager/releases) ed estrailo completamente, oppure clona il repository.
-2. Installa [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) se `pwsh` non è disponibile.
-3. Avvia **Start-GraphExplorerTokenManager.cmd**.
-4. Inserisci **Tenant ID**, **Object ID dell'utente** e permessi richiesti. Puoi salvarli come `profile.local.json`.
-5. Premi **Apri Graph Explorer**, accedi con l'account previsto e seleziona **Access token**. Lascia la pagina visibile in una sola finestra Edge.
-6. Premi **Recupera e verifica**. Quando la verifica riesce puoi usare **Copia token** per trasferirlo al tuo client REST.
+1. Scarica ed estrai lo ZIP dalle [Releases](https://github.com/alesmecca/graph-explorer-token-manager/releases/latest). Installa [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) se manca.
+2. Avvia **Start-GraphExplorerTokenManager.cmd** e premi **Accedi / scegli account**. Il programma apre Graph Explorer se necessario e attiva il suo pulsante Sign in.
+3. Se Microsoft propone account già salvati, scegli quello desiderato nella finestra del tool. La selezione viene applicata alla pagina Microsoft verificata. Per una nuova identità usa **Altro account: InPrivate** oppure **Usa un altro account** nella scelta proposta.
+4. La sessione Microsoft esistente può completare l'accesso. Se vengono richiesti password, MFA o consenso, completali nel browser, quindi premi **Rileva account**. Non inserirli nel tool.
+5. Controlla nome, indirizzo e tenant rilevati. Assegna un nome al profilo e premi **Usa questo account**. Non servono Tenant ID o Object ID digitati a mano.
+6. Per riusare il token da altri processi, seleziona **Salva il token protetto con Windows** prima della conferma. Poi premi **Prova automazione: GET /me** o **Esporta script .ps1**.
 
-Tenant ID e Object ID si trovano nel portale Microsoft Entra. Per un account guest usa l'Object ID nel tenant di destinazione. La casella *Consenti di selezionare le schede* autorizza soltanto la selezione dei pannelli della pagina Graph Explorer già visibile, dopo almeno tre secondi di inattività. Le schede inattive del browser vanno aperte manualmente.
+Il riconoscimento non salva un account prima della conferma; il candidato scade dopo cinque minuti. Più profili possono coesistere. Il profilo selezionato vincola sempre tenant e utente: un account diverso nel browser non viene sostituito silenziosamente.
 
-Il programma non esegue login, MFA, scelta account o consenso. Se l'interfaccia di Edge cambia, **Incolla token** offre un campo nascosto e applica gli stessi controlli di identità e scadenza.
+La selezione degli account dipende dai controlli esposti dalla pagina Microsoft. Se la pagina usa un flusso diverso, scegli l'account direttamente nel browser e premi **Rileva account**. Le finestre InPrivate possono condividere la stessa sessione. Le policy aziendali possono disabilitare InPrivate.
 
-## Profilo riutilizzabile
+## Finestre, permessi e recupero
 
-Copia `examples/profile.example.json` in `profile.local.json` e sostituisci gli identificativi fittizi:
+**Cerca finestre** elenca soltanto finestre Edge visibili con Graph Explorer attivo. Se ce ne sono più di una, scegli quella desiderata. Per associarla a un profilo esistente premi **Salva impostazioni**; se la finestra viene chiusa, cercala e associala di nuovo. In modalità automatica serve una sola finestra compatibile.
 
-```json
-{
-  "TenantId": "11111111-1111-4111-8111-111111111111",
-  "AccountObjectId": "22222222-2222-4222-8222-222222222222",
-  "RequiredScopes": ["User.Read"],
-  "MinimumValiditySeconds": 180
-}
-```
+`User.Read` è sempre richiesto per `/me`. Puoi aggiungere scope separati da spazi, per esempio `Mail.Read`. Il tool verifica quelli presenti nel token: scriverli nel profilo **non concede permessi**. Usa **Modify permissions** in Graph Explorer per i consensi necessari. Cambiare gli scope richiesti invalida il token salvato.
 
-`User.Read` è sempre richiesto per verificare `/me`. Gli scope aggiuntivi sono controllati esattamente: inserirli nel profilo non concede permessi. Il margine di scadenza è configurabile da 30 a 600 secondi nel modulo e nella CLI; la GUI usa 180 secondi. I file `*.local.json` sono esclusi da Git.
+**Recupera da Edge** forza una nuova lettura. **Aggiorna pagina e rileggi token** autorizza un aggiornamento della pagina verificata e un nuovo controllo del token. L'opzione di aggiornamento nel profilo permette anche alle automazioni di tentare questa operazione quando manca un token valido. Un aggiornamento della pagina non garantisce che Microsoft emetta un token nuovo.
 
-## CLI
+La scelta account resta in primo piano sopra Edge. Se Edge richiede **Ricarica sito**, il tool interrompe l'attesa con `browser_confirmation_required`: scegli Ricarica o Annulla nel browser e riprova. Il tool non conferma la perdita di eventuali modifiche alla pagina.
 
-Dalla cartella del progetto:
+Se i controlli del browser cambiano, **Incolla token** offre un campo nascosto e lo stesso riconoscimento/verifica dell'identità. La copia negli appunti è sempre esplicita.
 
-```powershell
-pwsh -NoProfile -File ./scripts/Invoke-TokenManager.ps1 -Action Diagnose
-pwsh -NoProfile -File ./scripts/Invoke-TokenManager.ps1 -Action Open
-pwsh -NoProfile -File ./scripts/Invoke-TokenManager.ps1 -Action Connect -ProfilePath ./profile.local.json
-# Consenti la selezione del pannello Access token nella pagina già visibile:
-pwsh -NoProfile -File ./scripts/Invoke-TokenManager.ps1 -Action Connect -ProfilePath ./profile.local.json -AllowInteraction
-# Alternativa: input interattivo nascosto, mai token nella riga di comando:
-pwsh -NoProfile -File ./scripts/Invoke-TokenManager.ps1 -Action Connect -ProfilePath ./profile.local.json -Manual
-```
+## Automazione senza token negli script
 
-La CLI restituisce JSON con soli metadati; exit code `0` per successo, `2` per errore gestito. Ogni invocazione chiude la propria cache. Usa il modulo nello stesso processo per integrare il token con altri script.
-
-## Modulo PowerShell
+Dalla cartella del programma:
 
 ```powershell
 Import-Module ./src/GraphExplorerToken/GraphExplorerToken.psd1
-$settings = Get-Content ./profile.local.json -Raw | ConvertFrom-Json -AsHashtable
-$profile = New-GraphExplorerProfile @settings
+Get-GraphAccount | Select-Object ProfileId, Name, UserPrincipalName
 
-Connect-GraphExplorerToken -Profile $profile
-Get-GraphExplorerTokenInfo -Profile $profile
-
-$token = Get-GraphExplorerToken -Profile $profile # copia SecureString
-try {
-    # PowerShell 7 accetta SecureString per l'autenticazione Bearer.
-    $me = Invoke-RestMethod -Method Get `
-        -Uri 'https://graph.microsoft.com/v1.0/me?$select=id,displayName' `
-        -Authentication Bearer -Token $token -MaximumRedirection 0
-    $me
-} finally {
-    $token.Dispose()
-    Clear-GraphExplorerToken -Profile $profile
-}
+$profileId = '<ProfileId del profilo scelto>'
+Invoke-GraphAccountRequest -ProfileId $profileId `
+    -Path '/v1.0/me?$select=id,displayName'
 ```
 
-Per l'inserimento manuale usa `Read-Host -AsSecureString`, poi `Connect-GraphExplorerToken -Profile $profile -Token $inputToken` e disponi il valore di input con `.Dispose()`. `-Force` forza una nuova acquisizione e verifica. Nessuna funzione pubblica restituisce il bearer in chiaro.
+Il `ProfileId` identifica la configurazione locale, non è una credenziale. Usa sempre un profilo esplicito. Il wrapper accetta percorsi `/v1.0/...` e `/beta/...` oppure URL HTTPS del solo host `graph.microsoft.com`, disabilita redirect e applica timeout. Non segue automaticamente la paginazione; valida anche un eventuale `@odata.nextLink` quando lo passi alla chiamata successiva.
 
-La cache distingue tenant, utente, scope e margine. `Connect` riusa una verifica vecchia al massimo cinque minuti se il token conserva il margine richiesto. `Get-GraphExplorerToken` verifica la scadenza ma non contatta Graph: un token può essere revocato nel frattempo. Chiudere il processo o chiamare `Clear-GraphExplorerToken` cancella la cache locale, senza revocare la sessione Microsoft.
+Per processi che devono evitare qualsiasi accesso al browser:
 
-## Sicurezza e limiti
+```powershell
+Invoke-GraphAccountRequest -ProfileId $profileId -Path '/v1.0/me' -CacheOnly
+```
 
-La lettura usa soltanto controlli visibili di una pagina HTTPS Graph Explorer la cui origine è verificata nella barra di Edge. Non usa cookie, database browser o cronologia. La modalità predefinita è passiva. L'adattatore vive in un processo separato, terminato al timeout; non è un servizio persistente.
+La cache protetta deve essere ancora valida. Ogni nuovo processo verifica il bearer con Graph `/me` prima dell'uso; la memoria del processo può riusare una verifica per cinque minuti, controllando comunque la scadenza a ogni recupero. La durata minima residua è 180 secondi.
 
-I metadati JWT controllano preliminarmente audience, tenant, utente, scope e durata. **La decodifica non verifica la firma.** Prima di salvare il token in memoria, il programma esegue esclusivamente `GET https://graph.microsoft.com/v1.0/me?$select=id`, senza redirect, e verifica l'ID restituito. Microsoft Graph valida il token ricevuto. Questo controllo non prova l'autorizzazione alle altre API.
+CLI con output JSON e codici di uscita:
 
-Il token resta in memoria, con conversioni temporanee in chiaro necessarie alla richiesta HTTP e alla copia esplicita. Non sono conservati refresh token. La copia negli appunti è una scelta dell'utente: cronologia e sincronizzazione di Windows possono conservarla e **gli appunti non vengono cancellati automaticamente**.
+```powershell
+pwsh -NoProfile -File ./scripts/Invoke-GraphAutomation.ps1 -Action Accounts
+pwsh -NoProfile -File ./scripts/Invoke-GraphAutomation.ps1 `
+    -Action Request -ProfileId '<ProfileId>' -Path '/v1.0/me' -CacheOnly
+```
 
-Questa versione supporta token JWT leggibili, account delegati e cloud globale Microsoft. I token opachi producono `unsupported_token_format`. L'automazione dipende dai controlli esposti da Edge e Graph Explorer; non può garantire compatibilità con ogni aggiornamento o policy aziendale. Il controllo automatico non cerca schede browser inattive o finestre minimizzate.
+`0`: successo; `2`: accesso/token/identità/permessi da sistemare; `3`: configurazione/cache/input; `4`: rete o limitazione Graph; `5`: altro errore. Gli errori contengono un codice, mai il bearer. Le risposte Graph possono contenere dati personali richiesti dalla tua automazione: gestiscine l'output di conseguenza.
 
-È uno strumento interattivo per sviluppo e amministrazione. Per un'applicazione di produzione o un processo senza operatore usa una tua registrazione applicativa e MSAL. Il progetto è indipendente da Microsoft. Vedi [SECURITY.md](SECURITY.md) e [risoluzione dei problemi](docs/troubleshooting.md).
+Vedi [automazioni ed esempi](docs/automation.md) per Utilità di pianificazione, richieste di scrittura, Python e uso diretto di `SecureString`.
 
-## Verificare e distribuire
+## Conservazione e limiti
+
+Il comportamento iniziale è **solo memoria**. La persistenza facoltativa usa **Windows DPAPI CurrentUser**: token e vincoli del profilo sono cifrati insieme sotto `%LOCALAPPDATA%\GraphExplorerTokenManager`. I file JSON contengono solo metadati del profilo. Non spostare la cache su OneDrive o nel repository; non è una configurazione credenziali portabile.
+
+**Cancella token** elimina il token dalla sessione del programma e dal file protetto. **Rimuovi profilo** elimina anche i metadati. Le copie già ottenute da altri processi, gli appunti e la sessione Microsoft non vengono revocati. Non viene conservato alcun refresh token.
+
+Il recupero di un nuovo token richiede una sessione Graph Explorer utilizzabile, un desktop interattivo e controlli UI compatibili. Password, MFA, consensi e policy Microsoft restano applicabili. **Questo percorso non garantisce esecuzioni perpetue senza intervento o rinnovo mentre Windows è disconnesso.** Una cache valida può funzionare senza browser, fino alla scadenza o revoca.
+
+Sono supportati token JWT leggibili e account delegati nel cloud globale. La decodifica JWT controlla preliminarmente audience, tenant, utente, scope e scadenza; **non verifica la firma**. Microsoft Graph valida lo stesso bearer durante `/me`. Questo non prova il diritto di eseguire ogni altra API.
+
+Il tool non legge cookie, password salvate, database o cronologia del browser. I processi dello stesso utente Windows possono usare DPAPI: non è una difesa da software malevolo eseguito con la tua identità. La cronologia e la sincronizzazione degli appunti possono conservare copie esplicite. Vedi [SECURITY.md](SECURITY.md).
+
+## Aggiornamento dalla versione 1
+
+Le API `New-GraphExplorerProfile`, `Connect-GraphExplorerToken`, `Get-GraphExplorerToken`, `Get-GraphExplorerTokenInfo` e `Clear-GraphExplorerToken`, e la CLI `Invoke-TokenManager.ps1`, restano disponibili con la cache in memoria originale. I vecchi `profile.local.json` non vengono importati automaticamente: usa il nuovo riconoscimento per creare un account nominato e ottenere un `ProfileId`.
+
+## Verifica e build
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Test.ps1
 pwsh -NoProfile -File ./scripts/Build-Release.ps1
 ```
 
-I test offline usano token sintetici, HTTP simulato e controlli dell'origine; verificano anche costruzione GUI e sintassi. Non aprono il browser e non contattano un tenant. Il collaudo reale resta distinto: [procedura e copertura](docs/testing.md). La CI esegue lo stesso runner su Windows. La build riesegue i test e produce ZIP e SHA-256 in `artifacts/` senza profili locali.
+Test sintetici per autenticazione, HTTP, origini, profili, cache e retry; DPAPI reale e recupero da un processo PowerShell separato; controlli GUI, sintassi e manifest. Nessun test offline usa account reali o rete. Build e CI producono ZIP e SHA-256 senza dati locali. Il [resoconto dei collaudi](docs/testing.md) distingue le prove automatiche da quelle eseguite sul PC.
 
-## Riferimenti ufficiali
+Riferimenti: [Graph Explorer e access token](https://learn.microsoft.com/en-us/graph/graph-explorer/graph-explorer-features), [access token Microsoft](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens), [Windows DPAPI CurrentUser](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.dataprotectionscope).
 
-- [Graph Explorer: pannello Access token](https://learn.microsoft.com/en-us/graph/graph-explorer/graph-explorer-features)
-- [Microsoft Identity: formati e validazione dei token](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens)
-- [Microsoft Graph: GET user e /me](https://learn.microsoft.com/en-us/graph/api/user-get?view=graph-rest-1.0)
-
-Licenza [MIT](LICENSE). Vedi [CHANGELOG.md](CHANGELOG.md) per le modifiche.
+Progetto indipendente da Microsoft. Licenza [MIT](LICENSE).

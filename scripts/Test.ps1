@@ -9,7 +9,7 @@ foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Include *.ps1
 }
 if ($parseFailures) {throw 'PowerShell parsing failed'}
 $null=Test-ModuleManifest (Join-Path $root 'src/GraphExplorerToken/GraphExplorerToken.psd1')
-foreach ($test in @('Test-Core.ps1','Test-Http.ps1','Test-BrowserContract.ps1')) {
+foreach ($test in @('Test-Core.ps1','Test-Http.ps1','Test-BrowserContract.ps1','Test-Accounts.ps1')) {
     & (Join-Path $PSHOME 'pwsh') -NoProfile -File (Join-Path $root "tests/$test")
     if ($LASTEXITCODE -ne 0) {throw "Failed: $test"}
 }

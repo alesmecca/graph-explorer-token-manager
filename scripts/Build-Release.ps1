@@ -12,7 +12,7 @@ $files=@('README.md','LICENSE','SECURITY.md','CHANGELOG.md','CONTRIBUTING.md','S
 foreach ($folder in @('src','scripts','tests','docs','examples')) {
     $files+=Get-ChildItem -LiteralPath (Join-Path $root $folder) -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($root,$_.FullName) }
 }
-if ($files | Where-Object { $_ -match '(?i)\.local\.|\.log$|\.pfx$|\.pem$|\.key$' }) {throw 'Local or sensitive file in package inputs'}
+if ($files | Where-Object { $_ -match '(?i)\.local\.|\.(?:log|pfx|pem|key|bin|lock|tmp)$|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.json$' }) {throw 'Local or sensitive file in package inputs'}
 $stream=[IO.File]::Open($archive,[IO.FileMode]::Create)
 $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create)
 try {

@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 $script:TokenCache = @{}
-$script:KnownErrors = @('invalid_profile','invalid_token','unsupported_token_format','token_expired','token_not_yet_valid','wrong_audience','wrong_tenant','wrong_account','required_scopes_missing','graph_unauthorized','graph_forbidden','graph_throttled','graph_unavailable','graph_identity_mismatch','browser_timeout','browser_unavailable','browser_origin_not_verified','graph_explorer_tab_not_found','ambiguous_explorer_windows','token_not_visible','ambiguous_token_controls','desktop_in_use','control_not_actionable','interaction_required','unsupported_platform','token_not_connected','token_worker_failed','private_worker_required','operation_failed')
+$script:KnownErrors = @('invalid_profile','invalid_token','unsupported_token_format','token_expired','token_not_yet_valid','wrong_audience','wrong_tenant','wrong_account','required_scopes_missing','graph_unauthorized','graph_forbidden','graph_throttled','graph_unavailable','graph_identity_mismatch','browser_timeout','browser_confirmation_required','browser_unavailable','browser_origin_not_verified','graph_explorer_tab_not_found','ambiguous_explorer_windows','token_not_visible','ambiguous_token_controls','desktop_in_use','control_not_actionable','interaction_required','unsupported_platform','token_not_connected','token_worker_failed','private_worker_required','operation_failed')
 
 function New-GraphExplorerProfile {
     [CmdletBinding()]
@@ -107,7 +107,7 @@ function Invoke-GETIdentityCheck([string]$Token, $Profile) {
     }
 }
 
-function Invoke-GETBrowserWorker([switch]$AllowInteraction,[int]$TimeoutSeconds) {
+function Invoke-GETBrowserWorker([switch]$AllowInteraction,[int]$TimeoutSeconds=30,[long]$WindowHandle=0,[ValidateSet('Read','List','Refresh','SignIn','SelectAccount')][string]$Action='Read',[string]$AccountUsername) {
     if (-not $IsWindows) { throw 'unsupported_platform' }
     $start = [Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh.exe'))
     $start.UseShellExecute = $false; $start.CreateNoWindow = $true
@@ -115,6 +115,8 @@ function Invoke-GETBrowserWorker([switch]$AllowInteraction,[int]$TimeoutSeconds)
     $worker = Join-Path $PSScriptRoot '../../scripts/Read-BrowserToken.ps1'
     foreach ($arg in @('-NoLogo','-NoProfile','-NonInteractive','-File',$worker,'-TimeoutSeconds',[string]$TimeoutSeconds)) { $start.ArgumentList.Add($arg) }
     if ($AllowInteraction) { $start.ArgumentList.Add('-AllowInteraction') }
+    foreach ($arg in @('-WindowHandle',[string]$WindowHandle,'-Action',$Action)) { $start.ArgumentList.Add($arg) }
+    if ($AccountUsername) { $start.ArgumentList.Add('-AccountUsername'); $start.ArgumentList.Add($AccountUsername) }
     $start.Environment['GET_PRIVATE_WORKER'] = '1'
     $child = $null
     try {
@@ -128,6 +130,8 @@ function Invoke-GETBrowserWorker([switch]$AllowInteraction,[int]$TimeoutSeconds)
             if ($value.code -cin $script:KnownErrors) { throw $value.code }
             throw 'token_worker_failed'
         }
+        if ($Action -eq 'List') { return @($value.windows) }
+        if ($Action -in @('SignIn','SelectAccount')) { return [pscustomobject]$value.result }
         if (-not $value.access_token -or $value.access_token -isnot [string]) { throw 'token_worker_failed' }
         return $value.access_token
     } finally { if ($child) { $child.Dispose() }; $output = $null; $errors = $null; $value = $null }
@@ -237,20 +241,25 @@ function Test-GraphExplorerEnvironment {
     param()
     $edge = if ($IsWindows) { @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count -gt 0 } else { $false }
     [pscustomobject]@{
-        Version = '1.0.0'; PowerShellVersion = $PSVersionTable.PSVersion.ToString()
+        Version = '2.0.0'; PowerShellVersion = $PSVersionTable.PSVersion.ToString()
         Windows = [bool]$IsWindows; InteractiveSession = [Environment]::UserInteractive
         EdgeRunning = $edge; BrowserSupported = [bool]($IsWindows -and [Environment]::UserInteractive)
-        TokenStorage = 'process_memory'; RequiredBrowser = 'Microsoft Edge (Italian or English UI)'
+        TokenStorage = 'process_memory_or_opt_in_windows_dpapi'; RequiredBrowser = 'Microsoft Edge (Italian or English UI)'
     }
 }
 
 function Open-GraphExplorer {
     [CmdletBinding()]
-    param()
+    param([switch]$InPrivate)
     if (-not $IsWindows) { throw 'unsupported_platform' }
-    # Explicitly requested interactive browser window. Authentication remains with the user.
-    Start-Process 'microsoft-edge:https://developer.microsoft.com/en-us/graph/graph-explorer'
+    # A dedicated interactive window keeps Graph Explorer separate from other work.
+    $edge = @("${env:ProgramFiles(x86)}/Microsoft/Edge/Application/msedge.exe", "$env:ProgramFiles/Microsoft/Edge/Application/msedge.exe", "$env:LOCALAPPDATA/Microsoft/Edge/Application/msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $edge) { throw 'browser_unavailable' }
+    $arguments=@('--new-window','https://developer.microsoft.com/en-us/graph/graph-explorer')
+    if ($InPrivate) {$arguments=@('--inprivate')+$arguments}
+    Start-Process -FilePath $edge -ArgumentList $arguments
 }
 
-$ExecutionContext.SessionState.Module.OnRemove = { foreach ($entry in $script:TokenCache.Values) { $entry.Token.Dispose() }; $script:TokenCache.Clear() }
-Export-ModuleMember -Function New-GraphExplorerProfile,Connect-GraphExplorerToken,Get-GraphExplorerToken,Get-GraphExplorerTokenInfo,Clear-GraphExplorerToken,Test-GraphExplorerEnvironment,Open-GraphExplorer
+. (Join-Path $PSScriptRoot 'Private/Accounts.ps1')
+$ExecutionContext.SessionState.Module.OnRemove = { foreach ($entry in $script:TokenCache.Values) { $entry.Token.Dispose() }; $script:TokenCache.Clear(); foreach ($entry in $script:Discoveries.Values) { $entry.Token.Dispose() }; $script:Discoveries.Clear() }
+Export-ModuleMember -Function New-GraphExplorerProfile,Connect-GraphExplorerToken,Get-GraphExplorerToken,Get-GraphExplorerTokenInfo,Clear-GraphExplorerToken,Test-GraphExplorerEnvironment,Open-GraphExplorer,Get-GraphExplorerWindow,Start-GraphExplorerSignIn,Select-GraphSignInAccount,New-GraphAccountDiscovery,Clear-GraphAccountDiscovery,Save-GraphAccount,Get-GraphAccount,Set-GraphAccount,Remove-GraphAccount,Clear-GraphAccountToken,Get-GraphAccountToken,Get-GraphAccountStatus,Invoke-GraphAccountRequest
